@@ -1,5 +1,5 @@
 from core.game import Game
-from core.outcome import Outcome
+from core.results import Outcome
 from games.rock_paper_scissors.rps_state import RPSState
 from games.rock_paper_scissors.rps_action import RPSMove
 
