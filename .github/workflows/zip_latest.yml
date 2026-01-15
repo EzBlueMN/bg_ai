@@ -1,0 +1,27 @@
+name: Create latest ZIP on push
+
+# Trigger: runs every time you push to main branch
+on:
+  push:
+    branches:
+      - main  # change if you use a different branch
+
+jobs:
+  build-zip:
+    runs-on: ubuntu-latest  # GitHub-hosted Linux machine
+
+    steps:
+    # Step 1: Checkout the repository
+    - name: Checkout repository
+      uses: actions/checkout@v3
+
+    # Step 2: Create the ZIP file
+    - name: Create ZIP archive
+      run: zip -r bg_ai_latest.zip . -x ".git/*" ".github/*"
+
+    # Step 3: Upload ZIP as artifact
+    - name: Upload ZIP as artifact
+      uses: actions/upload-artifact@v3
+      with:
+        name: bg_ai_latest
+        path: bg_ai_latest.zip
