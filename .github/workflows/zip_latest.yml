@@ -5,6 +5,7 @@ on:
   push:
     branches:
       - main  # change if you use a different branch
+      - master
 
 jobs:
   build-zip:
