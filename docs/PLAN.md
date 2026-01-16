@@ -1,4 +1,4 @@
-# bg_ai — Plan (MVP)
+## Milestone: 1 — ADR0001 (S1-S8) - Plan (MVP)
 
 **Goal:** Build a fresh MVP implementation based on the current architecture.
 **Approach:** Greenfield MVP (new code aligned with ADR/ARCHITECTURE), legacy code is ignored for implementation.
@@ -304,3 +304,170 @@ These are intentionally delayed:
 - Do not let policies mutate game state directly.
 - Do not allow unseeded randomness.
 - If something is unclear, prefer adding an event to make behavior observable.
+
+## Milestone : Readability / Developer Onboarding (insert between S8 and S9)
+
+### Goal (Definition of Done)
+Before starting ADR0002 (Stats/Query), we add a human-friendly layer so a developer can:
+1) Understand what ADR0001 built without reading all code first
+2) Know where to start and how the system flows
+3) Run a simple example from PyCharm and see readable output (events + summary)
+4) Use examples as the “living documentation” instead of relying on the ADR tests
+
+---
+
+### Slice S9 — Developer README + Project Map (Docs)
+
+**Create**
+- `docs/README_DEV.md` (main onboarding entrypoint)
+- `docs/MAP.md` (navigation map: “if you want X, read Y”)
+
+**Acceptance Criteria**
+- README includes:
+  - What the project is (1 paragraph)
+  - How to run the simplest demo (one script)
+  - Key vocabulary (Game/Match/Tick/Event/Replay/Agent/Policy)
+  - “Follow the flow” (file → file)
+- MAP includes:
+  - “Start here” reading order
+  - Links to key files
+  - Debug pointers (if X fails, look at Y)
+
+---
+
+### Slice S10 — ADR0001 Implementation Notes (Docs)
+
+**Create**
+- `docs/IMPLEMENTATION/ADR0001.md`
+
+**Acceptance Criteria**
+- Explains:
+  - What was implemented (S1–S8)
+  - What was intentionally NOT implemented
+  - Key invariants
+  - Event types emitted and when
+  - Replay assumptions + limitations
+  - Where to extend next (Stats layer entrypoint)
+
+---
+
+### Slice S11 — Executable Examples (PyCharm-friendly)
+
+**Create**
+- `examples/adr0001_rps_live_and_replay.py`
+- `examples/adr0001_no_action_game.py`
+
+**Acceptance Criteria**
+- Running each example produces:
+  - clear printed summary
+  - event count + top event types
+  - live result vs replay result comparison (for RPS example)
+
+---
+
+### Slice S12 — Pretty Event Printing Helpers
+
+**Create**
+- `src/bg_ai/events/pretty.py`
+
+**Acceptance Criteria**
+- Provide helpers:
+  - `format_event(ev) -> str`
+  - `print_events(events, limit=...)`
+  - `summarize_event_types(events) -> dict[type, count]`
+- Examples use these helpers instead of raw event dumps
+
+---
+
+### Next Milestone
+After S9–S12 are done, proceed with:
+- ADR0002 — Stats/Query Layer (In-Memory First)
+- Stats implementation slices continue from **S13+**
+
+
+## Milestone: ADR0002 (S9-12) — Stats/Query Layer (In-Memory)
+
+### Goal (Definition of Done)
+
+1. A `StatsStore` can ingest completed matches (result + events).
+2. A `StatsQuery` can answer at least:
+
+   * action distribution for a player (R/P/S counts)
+   * win rate for a player (wins/total, draws supported)
+3. `DecisionContext` includes an optional `stats` handle.
+4. A demo run (or ADR test) proves:
+
+   * run N matches
+   * store is updated
+   * queries return expected numbers
+
+---
+
+### Slice S13 — Stats interfaces + in-memory implementation
+
+**Create**
+
+* `src/bg_ai/stats/__init__.py`
+* `src/bg_ai/stats/base.py` (Protocols: StatsQuery, StatsStore)
+* `src/bg_ai/stats/memory_store.py` (InMemoryStatsStore)
+
+**Acceptance criteria**
+
+* Can record:
+
+  * per-player action counts
+  * per-player wins/losses/draws (game-agnostic)
+* Query methods return deterministic results.
+
+---
+
+### Slice S14 — Wire StatsQuery into DecisionContext (optional for policies)
+
+**Update**
+
+* `src/bg_ai/policies/base.py` (DecisionContext gains `stats` field, default None)
+* `src/bg_ai/engine/match_runner.py` (accept optional `stats_query` or `stats_store.query()`)
+
+**Acceptance criteria**
+
+* Policies can read `ctx.stats` if provided.
+* Existing tests still pass when stats is None.
+
+---
+
+### Slice S15 — Simulation helper to run multiple matches + update store
+
+**Create**
+
+* `src/bg_ai/sim/__init__.py`
+* `src/bg_ai/sim/sim_runner.py`
+
+**Acceptance criteria**
+
+* Runs M matches sequentially, updating stats after each match:
+
+  * `store.ingest_match(game_id, agents, result, events)`
+* Returns final stats store.
+
+---
+
+### Slice S16 — ADR runner test_s9+ (or ADR0002 runner)
+
+**Update**
+
+* Either extend `test_ADR/ADR0001.py` with:
+
+  * `test_s9()` (stats aggregation)
+  * `test_s10()` (stats wired into context)
+* Or create:
+
+  * `test_ADR/ADR0002.py` (recommended for clarity)
+
+**Acceptance criteria**
+
+* After 3 RPS matches (fixed policies), assert:
+
+  * action_distribution(A)["R"] == expected
+  * win_rate(A) == expected
+
+---

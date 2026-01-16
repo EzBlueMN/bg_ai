@@ -231,14 +231,87 @@ def test_s6() -> None:
 
     print("S6 OK")
 
-
-
 def test_s7() -> None:
-    print("S7 not implemented yet")
+    """
+    S7: validate RPS end-to-end:
+    - 2 actors (A,B), simultaneous decisions per tick
+    - scores update correctly
+    - result winner computed
+    - decision events count matches rounds * 2
+    """
+    from bg_ai.agents.agent import Agent
+    from bg_ai.engine.match_runner import MatchRunner, MatchConfig
+    from bg_ai.events.sink import InMemoryEventSink
+    from bg_ai.games.rock_paper_scissors.game import RPSGame
+    from bg_ai.policies.fixed_policy import FixedPolicy
 
+    sink = InMemoryEventSink()
+    runner = MatchRunner()
+
+    # 3 rounds, A always Rock, B always Scissors -> A wins all rounds
+    cfg = MatchConfig(game_config={"rounds": 3, "actors": ["A", "B"]}, seed=123, max_ticks=100)
+
+    agents = {
+        "A": Agent(actor_id="A", policy=FixedPolicy("R")),
+        "B": Agent(actor_id="B", policy=FixedPolicy("S")),
+    }
+
+    match_id, result = runner.run_match(RPSGame(), sink, cfg, agents_by_id=agents)
+
+    _assert(result.outcome == "done", f"S7 failed: expected outcome 'done', got {result.outcome!r}")
+    _assert(result.details.get("winner") == "A", f"S7 failed: expected winner 'A', got {result.details!r}")
+    _assert(result.details.get("score_a") == 3, f"S7 failed: expected score_a=3, got {result.details!r}")
+    _assert(result.details.get("score_b") == 0, f"S7 failed: expected score_b=0, got {result.details!r}")
+
+    events = sink.events()
+    dp = [e for e in events if e.type == "decision_provided"]
+    _assert(len(dp) == 6, f"S7 failed: expected 6 decision_provided events (3 rounds * 2 actors), got {len(dp)}")
+
+    # Optional: ensure at least one domain_event was emitted
+    de = [e for e in events if e.type == "domain_event"]
+    _assert(len(de) >= 1, "S7 failed: expected at least one domain_event")
+
+    print("S7 OK")
 
 def test_s8() -> None:
-    print("S8 not implemented yet")
+    """
+    S8: validate replay without policies:
+    - run live match (RPS)
+    - export JSONL
+    - import JSONL
+    - replay events
+    - replay result matches live result
+    """
+    from bg_ai.agents.agent import Agent
+    from bg_ai.engine.match_runner import MatchRunner, MatchConfig
+    from bg_ai.events.sink import InMemoryEventSink
+    from bg_ai.events.codecs_jsonl import export_events_jsonl, import_events_jsonl
+    from bg_ai.games.rock_paper_scissors.game import RPSGame
+    from bg_ai.policies.fixed_policy import FixedPolicy
+    from bg_ai.replay.replayer import Replayer, ReplayConfig
+
+    sink = InMemoryEventSink()
+    runner = MatchRunner()
+
+    cfg = MatchConfig(game_config={"rounds": 3, "actors": ["A", "B"]}, seed=123, max_ticks=100)
+    agents = {
+        "A": Agent(actor_id="A", policy=FixedPolicy("R")),
+        "B": Agent(actor_id="B", policy=FixedPolicy("S")),
+    }
+
+    match_id, live_result = runner.run_match(RPSGame(), sink, cfg, agents_by_id=agents)
+
+    # Export/import
+    path = export_events_jsonl(_repo_root() / "runs" / "test_s8_rps.jsonl", sink.events())
+    loaded_events = import_events_jsonl(path)
+
+    # Replay (no agents/policies)
+    replayer = Replayer()
+    replay_result = replayer.replay(RPSGame(), loaded_events, ReplayConfig(game_config={"rounds": 3, "actors": ["A", "B"]}))
+
+    _assert(live_result.details == replay_result.details, f"S8 failed: live != replay\nlive={live_result.details}\nreplay={replay_result.details}")
+
+    print("S8 OK")
 
 
 # -------------------------
