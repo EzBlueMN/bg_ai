@@ -1,4 +1,4 @@
-from _legacy.core import State
+from src.bg_ai._legacy.core import State
 
 class RPSState(State):
     def __init__(self, moves=None):

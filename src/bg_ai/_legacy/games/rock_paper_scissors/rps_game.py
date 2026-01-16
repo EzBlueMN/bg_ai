@@ -1,7 +1,7 @@
-from _legacy.core import Game
-from _legacy.core.results import Outcome
-from _legacy.games.rock_paper_scissors.rps_state import RPSState
-from _legacy.games.rock_paper_scissors.rps_action import RPSMove
+from src.bg_ai._legacy.core import Game
+from src.bg_ai._legacy.core.results import Outcome
+from src.bg_ai._legacy.games.rock_paper_scissors.rps_state import RPSState
+from src.bg_ai._legacy.games.rock_paper_scissors.rps_action import RPSMove
 
 class RockPaperScissorsGame(Game):
 

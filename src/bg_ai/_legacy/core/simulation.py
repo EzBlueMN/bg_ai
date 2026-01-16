@@ -1,6 +1,6 @@
 import random
 
-from _legacy.core.events.event_bus import EventBus
+from src.bg_ai._legacy.core.events.event_bus import EventBus
 
 
 class Simulation:

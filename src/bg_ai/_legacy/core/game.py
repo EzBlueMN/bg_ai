@@ -1,6 +1,6 @@
 from abc import ABC, abstractmethod
-from _legacy.core.state import State
-from _legacy.core.action import Action
+from src.bg_ai._legacy.core.state import State
+from src.bg_ai._legacy.core.action import Action
 
 class Game(ABC):
 
