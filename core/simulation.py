@@ -1,12 +1,23 @@
 import random
 
+from core.events.event_bus import EventBus
+
+
 class Simulation:
-    def __init__(self, game, agents, seed: int):
+    def __init__(self, game, agents, seed: int, event_bus: EventBus | None = None):
         self.game = game
         self.agents = agents
         self.rng = random.Random(seed)
+        self.event_bus = event_bus or EventBus()
 
     def run(self):
+        self.event_bus.emit(Event(
+            type="simulation_started",
+            payload={
+                "agents": [agent.player_id for agent in self.agents]
+            },
+            timestamp=datetime.utcnow()
+        ))
         state = self.game.initial_state(
             seed=self.rng.randint(0, 1_000_000_000)
         )
