@@ -1,9 +1,9 @@
-from core.simulation import Simulation
-from agents.agent import Agent
-from games.rock_paper_scissors.rps_action import RPSMove
-from policies.policy import ForceActionPolicy, WeightedActionPolicy
-from games.rock_paper_scissors.rps_game import RockPaperScissorsGame
-from policies.policy import ForceActionPolicy, WeightedActionPolicy
+from _legacy.core import Simulation
+from _legacy.agents import Agent
+from _legacy.games.rock_paper_scissors.rps_action import RPSMove
+from _legacy.policies.policy import ForceActionPolicy, WeightedActionPolicy
+from _legacy.games.rock_paper_scissors.rps_game import RockPaperScissorsGame
+from _legacy.policies.policy import ForceActionPolicy, WeightedActionPolicy
 
 
 def run_experiment(n_games=100_000):

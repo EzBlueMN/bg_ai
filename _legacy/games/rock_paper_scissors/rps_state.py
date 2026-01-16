@@ -1,4 +1,4 @@
-from core.state import State
+from _legacy.core import State
 
 class RPSState(State):
     def __init__(self, moves=None):

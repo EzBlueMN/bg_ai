@@ -1,7 +1,7 @@
 from enum import Enum
 from typing import Union, List
 
-from policies.policy import Policy
+from _legacy.policies.policy import Policy
 
 
 class WeightedActionPolicy(Policy):

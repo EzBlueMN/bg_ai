@@ -1,6 +1,6 @@
 import random
 
-from core.events.event_bus import EventBus
+from _legacy.core.events.event_bus import EventBus
 
 
 class Simulation:

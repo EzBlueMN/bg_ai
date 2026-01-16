@@ -1,6 +1,6 @@
 from abc import ABC, abstractmethod
-from core.state import State
-from core.action import Action
+from _legacy.core.state import State
+from _legacy.core.action import Action
 
 class Game(ABC):
 
