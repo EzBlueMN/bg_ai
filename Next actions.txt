@@ -1,0 +1,17 @@
+Fix commit sync so this never blocks again
+
+Add a repo file that contains the current commit hash (committed), e.g. docs/COMMIT_SHA.txt.
+
+Then your prompt (and any zip export) has a deterministic “what commit is this?” answer even without .git/.
+
+Architecture next step (before coding): introduce a generic “Series/Format” layer
+
+Your docs already define “Match = one playthrough instance of a Game” (so your instinct “RPS = 1 round” is consistent).
+
+So: keep Game/Match minimal; move “best_of / first_to / timeboxed” into a generic orchestrator above MatchRunner.
+
+Pick one scope option (2 max):
+
+Option A (recommended): keep CURRENT_MILESTONE = ADR0002 (Stats/Query) intact; we create ADR0003 for Series/Format + typed actions/policies, then start S14 for implementation.
+
+Option B: treat this as still part of S13 and extend ADR0002 scope (risk: milestone creep + stats layer gets delayed).
