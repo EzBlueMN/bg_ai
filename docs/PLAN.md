@@ -1,4 +1,4 @@
-## Milestone: 1 — ADR0001 (S1-S8) - Plan (MVP)
+## Milestone: ADR0001 (S1-S8) - Plan (MVP)
 
 **Goal:** Build a fresh MVP implementation based on the current architecture.
 **Approach:** Greenfield MVP (new code aligned with ADR/ARCHITECTURE), legacy code is ignored for implementation.
@@ -96,7 +96,6 @@ ARCHITECTURE.md
 PLAN.md
 ADR/
 0001-event-traced-deterministic-architecture.md
-
 
 ---
 
@@ -305,10 +304,10 @@ These are intentionally delayed:
 - Do not allow unseeded randomness.
 - If something is unclear, prefer adding an event to make behavior observable.
 
-## Milestone : Readability / Developer Onboarding (insert between S8 and S9)
+## Milestone: ADR0002 (S9-S12) Readability / Developer Onboarding
 
 ### Goal (Definition of Done)
-Before starting ADR0002 (Stats/Query), we add a human-friendly layer so a developer can:
+Before starting ADR0002 (Match formats + typed actions), we add a human-friendly layer so a developer can:
 1) Understand what ADR0001 built without reading all code first
 2) Know where to start and how the system flows
 3) Run a simple example from PyCharm and see readable output (events + summary)
@@ -347,7 +346,7 @@ Before starting ADR0002 (Stats/Query), we add a human-friendly layer so a develo
   - Key invariants
   - Event types emitted and when
   - Replay assumptions + limitations
-  - Where to extend next (Stats layer entrypoint)
+  - Where to extend next (Match formats + typed actions entrypoint)
 
 ---
 
@@ -379,14 +378,96 @@ Before starting ADR0002 (Stats/Query), we add a human-friendly layer so a develo
 
 ---
 
-## Milestone: ADR0002 (S13-116) — Stats/Query Layer (In-Memory)
+## Milestone: ADR0003 (S13-S17) — Match Formats, Single-Match Games, Typed Actions
+
+### Goal (Definition of Done)
+
+1) Games represent a single match (no multi-round logic inside games).
+   - RPS becomes a single round.
+2) Generic series/format layer can run multiple matches:
+   - at minimum: BestOfN and FirstToN.
+3) Actions are typed per game using Enum-based actions.
+4) A second minimal game exists to validate separation:
+   - Matching Fingers (each player reveals 1 or 2; same vs different decides winner).
+5) Examples demonstrate running a series for both games.
+
+---
+
+### Slice S13 — Typed actions base + migrate RPS actions to Enum
+
+**Create / Update**
+- `src/bg_ai/games/action_enum.py` (or `src/bg_ai/games/types.py` if preferred): `ActionEnum` base
+- `src/bg_ai/games/rock_paper_scissors/types.py`: replace `"R"/"P"/"S"` literals with `RPSAction(ActionEnum)`
+
+**Acceptance criteria**
+- RPS policies/actions in live runs can use `RPSAction` (not raw strings).
+- Event payload for `decision_provided` stores a stable wire format (default: `action.value`).
+
+---
+
+### Slice S14 — Refactor RPS to single-round (remove rounds from game)
+
+**Update**
+- `src/bg_ai/games/rock_paper_scissors/game.py`
+- `src/bg_ai/games/rock_paper_scissors/types.py`
+- `examples/adr0001_rps_live_and_replay.py` (or create a new ADR0002 example file)
+
+**Acceptance criteria**
+- RPS match resolves exactly one round and ends.
+- Old “rounds” config is no longer a game config field.
+- Live vs replay still matches for a single-round RPS match.
+
+---
+
+### Slice S15 — Series runner + match formats (BestOfN / FirstToN)
+
+**Create**
+- `src/bg_ai/series/__init__.py`
+- `src/bg_ai/series/formats.py` (BestOfN, FirstToN)
+- `src/bg_ai/series/series_runner.py`
+
+**Acceptance criteria**
+- Can run N matches sequentially for a given Game + Agents.
+- Series returns aggregate result (wins/losses/draws by player, plus match results).
+
+---
+
+### Slice S16 — Add Matching Fingers game (single-round)
+
+**Create**
+- `src/bg_ai/games/matching_fingers/__init__.py`
+- `src/bg_ai/games/matching_fingers/game.py`
+- `src/bg_ai/games/matching_fingers/types.py` (FingersAction(ActionEnum))
+
+**Acceptance criteria**
+- One match: each player picks 1 or 2; game produces winner/draw according to rules.
+- Uses typed Enum actions.
+- Works live and replay.
+
+---
+
+### Slice S17 — ADR0002 example + ADR runner
+
+**Create / Update**
+- `examples/adr0002_series_rps_and_fingers.py` (recommended)
+- `test_ADR/ADR0002.py` (recommended)
+
+**Acceptance criteria**
+- Demonstrates:
+  - BestOfN (or FirstToN) for RPS and Matching Fingers
+  - Prints readable summary for each
+- ADR runner includes at least one deterministic assertion (series result stable with seed).
+
+---
+
+## Milestone: ADR0004 (S18-S21) — Stats/Query Layer (In-Memory)
 
 ### Goal (Definition of Done)
 
 1. A `StatsStore` can ingest completed matches (result + events).
 2. A `StatsQuery` can answer at least:
 
-   * action distribution for a player (R/P/S counts)
+   * action distribution for a player (R/P/S counts via action wire value)
    * win rate for a player (wins/total, draws supported)
 3. `DecisionContext` includes an optional `stats` handle.
 4. A demo run (or ADR test) proves:
@@ -397,7 +478,7 @@ Before starting ADR0002 (Stats/Query), we add a human-friendly layer so a develo
 
 ---
 
-### Slice S13 — Stats interfaces + in-memory implementation
+### Slice S18 — Stats interfaces + in-memory implementation
 
 **Create**
 
@@ -415,7 +496,7 @@ Before starting ADR0002 (Stats/Query), we add a human-friendly layer so a develo
 
 ---
 
-### Slice S14 — Wire StatsQuery into DecisionContext (optional for policies)
+### Slice S19 — Wire StatsQuery into DecisionContext (optional for policies)
 
 **Update**
 
@@ -429,7 +510,7 @@ Before starting ADR0002 (Stats/Query), we add a human-friendly layer so a develo
 
 ---
 
-### Slice S15 — Simulation helper to run multiple matches + update store
+### Slice S20 — Simulation helper to run multiple matches + update store
 
 **Create**
 
@@ -445,17 +526,12 @@ Before starting ADR0002 (Stats/Query), we add a human-friendly layer so a develo
 
 ---
 
-### Slice S16 — ADR runner test_s9+ (or ADR0002 runner)
+### Slice S21 — ADR runner for stats milestone
 
-**Update**
+**Create / Update**
 
-* Either extend `test_ADR/ADR0001.py` with:
-
-  * `test_s9()` (stats aggregation)
-  * `test_s10()` (stats wired into context)
-* Or create:
-
-  * `test_ADR/ADR0002.py` (recommended for clarity)
+* Create:
+  * `test_ADR/ADR0003.py` (recommended for clarity)
 
 **Acceptance criteria**
 
@@ -463,5 +539,3 @@ Before starting ADR0002 (Stats/Query), we add a human-friendly layer so a develo
 
   * action_distribution(A)["R"] == expected
   * win_rate(A) == expected
-
----

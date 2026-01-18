@@ -1,8 +1,9 @@
-# ADR 0002 — Stats/Query Layer (In-Memory First)
+# ADR 0003 — Stats/Query Layer (In-Memory First)
 
 **Status:** Proposed
 **Date:** 2026-01-16
 **Related:** ADR 0001 (Event-traced deterministic architecture)
+**Supersedes:** ADR 0002 (renumbered; see ADR 0002 for match formats + typed actions)
 
 ---
 
