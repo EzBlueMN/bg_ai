@@ -379,13 +379,7 @@ Before starting ADR0002 (Stats/Query), we add a human-friendly layer so a develo
 
 ---
 
-### Next Milestone
-After S9–S12 are done, proceed with:
-- ADR0002 — Stats/Query Layer (In-Memory First)
-- Stats implementation slices continue from **S13+**
-
-
-## Milestone: ADR0002 (S9-12) — Stats/Query Layer (In-Memory)
+## Milestone: ADR0002 (S13-116) — Stats/Query Layer (In-Memory)
 
 ### Goal (Definition of Done)
 
