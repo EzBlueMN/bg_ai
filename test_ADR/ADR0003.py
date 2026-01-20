@@ -91,10 +91,72 @@ def test_s14() -> None:
     assert len(applied) == 1
 
 
-
 def test_s15() -> None:
-    # TODO: implement validation for S15
-    pass
+    # S15 + S15.1 live here. Keep S15 as the slice entrypoint.
+    test_s15_1()
+
+
+def test_s15_1() -> None:
+    """S15.1: Series-level events (Option A)."""
+
+    from bg_ai.agents.agent import Agent
+    from bg_ai.events.sink import InMemoryEventSink
+    from bg_ai.games.rock_paper_scissors.game import RPSGame
+    from bg_ai.games.rock_paper_scissors.types import RPSAction
+    from bg_ai.policies.fixed_policy import FixedPolicy
+    from bg_ai.series.formats import BestOfN
+    from bg_ai.series.series_runner import SeriesConfig, SeriesRunner
+
+    series_sink = InMemoryEventSink()
+    runner = SeriesRunner()
+
+    config = SeriesConfig(
+        game_config={"actors": ["A", "B"]},
+        seed=123,
+        max_matches=10,
+    )
+
+    agents = {
+        "A": Agent(actor_id="A", policy=FixedPolicy(RPSAction.ROCK)),
+        "B": Agent(actor_id="B", policy=FixedPolicy(RPSAction.SCISSORS)),
+    }
+
+    result = runner.run_series(
+        game=RPSGame(),
+        match_format=BestOfN(3),
+        config=config,
+        agents_by_id=agents,
+        series_sink=series_sink,
+    )
+
+    assert result.outcome == "done"
+    assert result.winner == "A"
+    assert result.wins_by_actor["A"] == 2
+    assert result.wins_by_actor["B"] == 0
+    assert len(result.match_results) == 2  # best-of-3 ends early at 2 wins
+
+    evs = series_sink.events()
+    types = [e.type for e in evs]
+    assert types.count("series_start") == 1
+    assert types.count("series_end") == 1
+    assert types.count("series_match_completed") == 2
+
+    series_id = result.series_id
+
+    # Event envelope rule: match_id == series_id and tick == -1 for series-level events
+    assert all(e.match_id == series_id for e in evs)
+    assert all(e.tick == -1 for e in evs)
+
+    # idx must be monotonic within series
+    idxs = [e.idx for e in evs]
+    assert idxs == list(range(len(evs)))
+
+    # Payload must include series_id, match_index, and underlying match_id
+    completed = [e for e in evs if e.type == "series_match_completed"]
+    assert completed[0].payload["series_id"] == series_id
+    assert completed[0].payload["match_index"] == 0
+    assert isinstance(completed[0].payload["match_id"], str)
+
 
 
 def test_s16() -> None:

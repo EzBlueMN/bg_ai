@@ -424,11 +424,32 @@ Before starting ADR0002 (Match formats + typed actions), we add a human-friendly
 **Create**
 - `src/bg_ai/series/__init__.py`
 - `src/bg_ai/series/formats.py` (BestOfN, FirstToN)
+- `src/bg_ai/series/ids.py` (new_series_id)
 - `src/bg_ai/series/series_runner.py`
 
 **Acceptance criteria**
 - Can run N matches sequentially for a given Game + Agents.
 - Series returns aggregate result (wins/losses/draws by player, plus match results).
+
+#### Slice S15.1 — Series-level events (Option A)
+
+**Goal**
+- Add a series wrapper that emits a small set of **series-level events** without changing match-level event semantics.
+
+**Series events (minimum)**
+- `series_start`
+- `series_match_completed`
+- `series_end`
+
+**Event envelope rule**
+- For series-level events, use `Event.match_id = series_id` and `tick = -1`.
+- Include `series_id`, `match_index`, and the underlying `match_id` in the **payload**.
+
+**Acceptance criteria**
+- Running a BestOf / FirstTo series emits:
+  - exactly 1 `series_start`
+  - 1 `series_match_completed` per match played
+  - exactly 1 `series_end`
 
 ---
 
