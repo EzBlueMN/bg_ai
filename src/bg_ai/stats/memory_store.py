@@ -6,7 +6,7 @@ from typing import Dict, List
 from bg_ai.events.model import Event
 from bg_ai.games.base import MatchResult
 
-from .base import StatsQuery, StatsStore
+from .base import StatsQuery
 
 
 @dataclass
@@ -17,13 +17,13 @@ class _PlayerRecord:
 
 
 @dataclass
-class InMemoryStatsStore(StatsStore, StatsQuery):
+class InMemoryStatsStore(StatsQuery):
     """
-    S18 MVP:
-    - action counts from decision_provided events (payload: actor_id, action wire str)
-    - win/loss/draw from result.details:
+    S18 MVP store:
+    - action counts from decision_provided events (payload: actor_id, action [wire str])
+    - W/L/D from result.details:
+        - actors: list[str]
         - winner: actor_id or None
-        - actors: list[str] (expected for our games)
     """
     _action_counts: Dict[str, Dict[str, int]] = field(default_factory=dict)
     _records: Dict[str, _PlayerRecord] = field(default_factory=dict)
@@ -44,7 +44,7 @@ class InMemoryStatsStore(StatsStore, StatsQuery):
 
             self._records.setdefault(actor_id, _PlayerRecord())
 
-        # 2) W/L/D (game-agnostic but assumes result has 'actors' + 'winner')
+        # 2) W/L/D
         details = result.details or {}
         actors = details.get("actors")
         winner = details.get("winner", None)
@@ -68,9 +68,7 @@ class InMemoryStatsStore(StatsStore, StatsQuery):
             else:
                 self._records[a].losses += 1
 
-    def query(self) -> StatsQuery:
-        return self
-
+    # StatsQuery
     def action_counts(self, actor_id: str) -> Dict[str, int]:
         return dict(self._action_counts.get(actor_id, {}))
 

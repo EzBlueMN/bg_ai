@@ -25,10 +25,10 @@ def test_s18() -> None:
 
     store = InMemoryStatsStore()
     runner = MatchRunner()
+    cfg = MatchConfig(game_config={"actors": ["A", "B"]}, seed=123, max_ticks=100)
 
     # Match 1: A=ROCK, B=SCISSORS => A wins
     sink1 = InMemoryEventSink()
-    cfg = MatchConfig(game_config={"actors": ["A", "B"]}, seed=123, max_ticks=100)
     agents1 = {
         "A": Agent("A", FixedPolicy(RPSAction.ROCK)),
         "B": Agent("B", FixedPolicy(RPSAction.SCISSORS)),
@@ -45,25 +45,57 @@ def test_s18() -> None:
     _mid2, res2 = runner.run_match(RPSGame(), sink2, cfg, agents_by_id=agents2)
     store.ingest_match(result=res2, events=sink2.events())
 
-    q = store.query()
-
     # Action counts (wire values)
-    assert q.action_counts("A") == {"R": 1, "P": 1}
-    assert q.action_counts("B") == {"S": 1, "P": 1}
+    assert store.action_counts("A") == {"R": 1, "P": 1}
+    assert store.action_counts("B") == {"S": 1, "P": 1}
 
     # Records
-    assert q.record("A") == {"wins": 1, "losses": 0, "draws": 1, "total": 2}
-    assert q.record("B") == {"wins": 0, "losses": 1, "draws": 1, "total": 2}
+    assert store.record("A") == {"wins": 1, "losses": 0, "draws": 1, "total": 2}
+    assert store.record("B") == {"wins": 0, "losses": 1, "draws": 1, "total": 2}
 
     # Win rate (wins/total)
-    assert q.win_rate("A") == 0.5
-    assert q.win_rate("B") == 0.0
+    assert store.win_rate("A") == 0.5
+    assert store.win_rate("B") == 0.0
+
 
 
 
 def test_s19() -> None:
-    # TODO: implement validation for S19
-    pass
+    from dataclasses import dataclass
+
+    from bg_ai.agents.agent import Agent
+    from bg_ai.engine.match_runner import MatchConfig, MatchRunner
+    from bg_ai.events.sink import InMemoryEventSink
+    from bg_ai.games.rock_paper_scissors.game import RPSGame
+    from bg_ai.games.rock_paper_scissors.types import RPSAction
+    from bg_ai.policies.base import DecisionContext
+    from bg_ai.stats.base import StatsQuery
+    from bg_ai.stats.memory_store import InMemoryStatsStore
+
+    @dataclass(frozen=True, slots=True)
+    class _StatsAwarePolicy:
+        stats: StatsQuery
+
+        def decide(self, ctx: DecisionContext) -> object:
+            # S19 acceptance: ctx.stats is the object we injected
+            assert ctx.stats is self.stats
+            return RPSAction.ROCK
+
+    runner = MatchRunner()
+    cfg = MatchConfig(game_config={"actors": ["A", "B"]}, seed=123, max_ticks=100)
+
+    # Provide a real query handle (store itself is a StatsQuery in S18 MVP)
+    store = InMemoryStatsStore()
+
+    sink = InMemoryEventSink()
+    agents = {
+        "A": Agent("A", _StatsAwarePolicy(store)),
+        "B": Agent("B", _StatsAwarePolicy(store)),
+    }
+
+    _mid, res = runner.run_match(RPSGame(), sink, cfg, agents_by_id=agents, stats_query=store)
+    assert res.outcome == "done"
+
 
 
 def test_s20() -> None:

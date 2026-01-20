@@ -12,6 +12,7 @@ from bg_ai.events.sink import EventSink
 from bg_ai.games.base import Game, MatchResult
 from bg_ai.policies.base import DecisionContext
 from bg_ai.games.action_enum import ActionEnum
+from bg_ai.stats.base import NullStatsQuery, StatsQuery
 
 
 @dataclass(frozen=True, slots=True)
@@ -32,12 +33,13 @@ class MatchRunner:
     """
 
     def run_match(
-        self,
-        game: Game,
-        sink: EventSink,
-        config: MatchConfig,
-        agents_by_id: Optional[Dict[str, Agent]] = None,
-    ) -> tuple[str, MatchResult]:
+            self,
+            game: Game,
+            sink: EventSink,
+            config: MatchConfig,
+            agents_by_id: Optional[Dict[str, Agent]] = None,
+            stats_query: Optional[StatsQuery] = None,
+    ) -> Tuple[str, MatchResult]:
         match_id = new_match_id()
 
         seed = config.seed if config.seed is not None else secrets.randbits(64)
@@ -53,6 +55,9 @@ class MatchRunner:
         idx += 1
 
         state = game.initial_state(rng.fork("game:init"), dict(config.game_config))
+
+        if stats_query is None:
+            stats_query = NullStatsQuery()
 
         while True:
             if game.is_terminal(state):
@@ -99,6 +104,7 @@ class MatchRunner:
                         legal_actions=list(legal),
                         rng=rng.fork(f"policy:{actor_id}:{tick}"),
                         game_id=game.game_id,
+                        stats=stats_query,
                     )
                     action = agent.policy.decide(ctx)
                     # Events must stay JSON-serializable.
