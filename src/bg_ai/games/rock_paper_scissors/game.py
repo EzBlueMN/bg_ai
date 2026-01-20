@@ -13,35 +13,31 @@ class RPSGame:
     """
     Rock Paper Scissors (RPS) game.
 
+    ADR0003/S14: single-round game (one match = one round).
+
     Config (game_config):
-      - rounds: int (default 3)
-      - actors: list[str] (default ["A","B"])  # MVP assumes exactly 2 actors
+      - actors: list[str] (default ["A","B"])  # exactly 2 actors
     """
     game_id: str = "rps_v1"
 
     def initial_state(self, rng: Any, config: Dict[str, Any]) -> RPSState:
-        rounds = int(config.get("rounds", 3))
         actors = config.get("actors", ["A", "B"])
         if not isinstance(actors, list) or len(actors) != 2:
             raise ValueError("RPS requires config['actors'] to be a list of exactly 2 actor ids")
 
-        if rounds <= 0:
-            raise ValueError("rounds must be > 0")
-
         # No randomness needed for base RPS state, but rng is provided for consistency.
-        return RPSState(rounds_total=rounds)
+        return RPSState(actors=(str(actors[0]), str(actors[1])))
 
     def current_actor_ids(self, state: RPSState) -> List[str]:
-        # Two-player simultaneous decision each round.
+        # Two-player simultaneous decision (single round).
         if state.is_done():
             return []
-        return ["A", "B"]
+        return [state.actors[0], state.actors[1]]
 
     def legal_actions(self, state: RPSState, actor_id: str) -> Optional[List[RPSAction]]:
-        if actor_id not in ("A", "B"):
+        if actor_id not in state.actors:
             raise ValueError(f"Unknown actor_id for RPS: {actor_id!r}")
         return [RPSAction.ROCK, RPSAction.PAPER, RPSAction.SCISSORS]
-
 
     def apply_actions(
         self,
@@ -52,41 +48,43 @@ class RPSGame:
         if state.is_done():
             return state, []
 
-        a = actions_by_actor.get("A")
-        b = actions_by_actor.get("B")
+        a_id, b_id = state.actors
+        a = actions_by_actor.get(a_id)
+        b = actions_by_actor.get(b_id)
+
+        # Live play provides RPSAction enums; replay provides wire strings.
+        # Note: RPSAction is a `str` Enum, so check enum type before checking `str`.
+        if not isinstance(a, RPSAction) and isinstance(a, str):
+            a = RPSAction.from_wire(a)
+        if not isinstance(b, RPSAction) and isinstance(b, str):
+            b = RPSAction.from_wire(b)
+
         if not isinstance(a, RPSAction) or not isinstance(b, RPSAction):
-            raise ValueError(f"Invalid RPS actions: A={a!r}, B={b!r}")
+            raise ValueError(f"Invalid RPS actions: {a_id}={a!r}, {b_id}={b!r}")
 
         # Determine winner of the round
         winner: Optional[str]
         if a == b:
             winner = None
         elif beats(a, b):
-            winner = "A"
+            winner = a_id
         else:
-            winner = "B"
-
-        # Update scores
-        if winner == "A":
-            state.score_a += 1
-        elif winner == "B":
-            state.score_b += 1
+            winner = b_id
 
         state.last_a = a
         state.last_b = b
         state.last_winner = winner
-        state.round_index += 1
+        state.done = True
 
-        # Domain event payload (engine will wrap it)
         domain_payloads = [
             {
                 "game": self.game_id,
-                "round": state.round_index,  # 1-based after increment
-                "A": a.to_wire(),
-                "B": b.to_wire(),
+                "actors": [a_id, b_id],
+                "actions": {
+                    a_id: a.to_wire(),
+                    b_id: b.to_wire(),
+                },
                 "winner": winner,
-                "score_a": state.score_a,
-                "score_b": state.score_b,
             }
         ]
         return state, domain_payloads
@@ -95,20 +93,16 @@ class RPSGame:
         return state.is_done()
 
     def result(self, state: RPSState) -> MatchResult:
-        if state.score_a > state.score_b:
-            winner = "A"
-        elif state.score_b > state.score_a:
-            winner = "B"
-        else:
-            winner = None
-
+        a_id, b_id = state.actors
         return MatchResult(
             outcome="done",
             details={
                 "game_id": self.game_id,
-                "rounds": state.rounds_total,
-                "score_a": state.score_a,
-                "score_b": state.score_b,
-                "winner": winner,
+                "actors": [a_id, b_id],
+                "actions": {
+                    a_id: (state.last_a.to_wire() if state.last_a else None),
+                    b_id: (state.last_b.to_wire() if state.last_b else None),
+                },
+                "winner": state.last_winner,
             },
         )

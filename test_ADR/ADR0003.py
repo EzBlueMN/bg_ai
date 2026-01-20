@@ -32,7 +32,8 @@ def test_s13() -> None:
     # 2) Running a match with enum actions must still work.
     sink = InMemoryEventSink()
     runner = MatchRunner()
-    cfg = MatchConfig(game_config={"rounds": 2, "actors": ["A", "B"]}, seed=123, max_ticks=100)
+    cfg = MatchConfig(game_config={"actors": ["A", "B"]}, seed=123, max_ticks=100)
+
 
     agents = {
         "A": Agent(actor_id="A", policy=FixedPolicy(RPSAction.ROCK)),
@@ -59,8 +60,36 @@ def test_s13() -> None:
 
 
 def test_s14() -> None:
-    # TODO: implement validation for S14
-    pass
+    from bg_ai.agents.agent import Agent
+    from bg_ai.engine.match_runner import MatchConfig, MatchRunner
+    from bg_ai.events.sink import InMemoryEventSink
+    from bg_ai.games.rock_paper_scissors.game import RPSGame
+    from bg_ai.games.rock_paper_scissors.types import RPSAction
+    from bg_ai.policies.fixed_policy import FixedPolicy
+
+    sink = InMemoryEventSink()
+    runner = MatchRunner()
+
+    # S14: RPS is single-round, so there is no "rounds" in config.
+    cfg = MatchConfig(game_config={"actors": ["A", "B"]}, seed=123, max_ticks=100)
+
+    agents = {
+        "A": Agent(actor_id="A", policy=FixedPolicy(RPSAction.ROCK)),
+        "B": Agent(actor_id="B", policy=FixedPolicy(RPSAction.SCISSORS)),
+    }
+
+    _, result = runner.run_match(RPSGame(), sink, cfg, agents_by_id=agents)
+    assert result.outcome == "done"
+    assert result.details.get("winner") == "A"
+
+    # Exactly one tick worth of decisions: 2 actors => 2 decision_provided
+    decision_events = [e for e in sink.events() if e.type == "decision_provided"]
+    assert len(decision_events) == 2
+
+    # Terminal after one actions_applied
+    applied = [e for e in sink.events() if e.type == "actions_applied"]
+    assert len(applied) == 1
+
 
 
 def test_s15() -> None:

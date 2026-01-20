@@ -25,13 +25,17 @@ def beats(a: RPSAction, b: RPSAction) -> bool:
 
 @dataclass
 class RPSState:
-    rounds_total: int
-    round_index: int = 0
-    score_a: int = 0
-    score_b: int = 0
+    """Single-match RPS state.
+
+    ADR0003/S14: RPS is one round (one simultaneous action per actor),
+    with multi-match aggregation handled by the generic series/format layer.
+    """
+
+    actors: tuple[str, str] = ("A", "B")
+    done: bool = False
     last_a: Optional[RPSAction] = None
     last_b: Optional[RPSAction] = None
-    last_winner: Optional[ActorId] = None  # "A", "B", or None for draw
+    last_winner: Optional[ActorId] = None  # actor id or None for draw
 
     def is_done(self) -> bool:
-        return self.round_index >= self.rounds_total
+        return self.done

@@ -121,9 +121,6 @@ class MatchRunner:
                 # Apply actions for this tick
                 state, domain_payloads = game.apply_actions(state, actions_by_actor, rng.fork(f"game:apply:{tick}"))
 
-                # Apply actions for this tick
-                state, domain_payloads = game.apply_actions(state, actions_by_actor, rng.fork(f"game:apply:{tick}"))
-
                 # For action logging, keep payload JSON-safe (wire strings for enums)
                 actions_wire_by_actor = {
                     k: (v.to_wire() if isinstance(v, ActionEnum) else v) for k, v in actions_by_actor.items()
