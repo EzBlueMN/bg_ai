@@ -1,15 +1,26 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
-from typing import Literal, Optional
+from typing import Optional
+
+from bg_ai.games.action_enum import ActionEnum
 
 
-RPSAction = Literal["R", "P", "S"]  # Rock, Paper, Scissors
+class RPSAction(ActionEnum):
+    ROCK = "R"
+    PAPER = "P"
+    SCISSORS = "S"
+
+
 ActorId = str
 
 
 def beats(a: RPSAction, b: RPSAction) -> bool:
-    return (a == "R" and b == "S") or (a == "P" and b == "R") or (a == "S" and b == "P")
+    return (
+        (a is RPSAction.ROCK and b is RPSAction.SCISSORS)
+        or (a is RPSAction.PAPER and b is RPSAction.ROCK)
+        or (a is RPSAction.SCISSORS and b is RPSAction.PAPER)
+    )
 
 
 @dataclass

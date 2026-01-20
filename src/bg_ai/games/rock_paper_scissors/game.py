@@ -40,7 +40,8 @@ class RPSGame:
     def legal_actions(self, state: RPSState, actor_id: str) -> Optional[List[RPSAction]]:
         if actor_id not in ("A", "B"):
             raise ValueError(f"Unknown actor_id for RPS: {actor_id!r}")
-        return ["R", "P", "S"]
+        return [RPSAction.ROCK, RPSAction.PAPER, RPSAction.SCISSORS]
+
 
     def apply_actions(
         self,
@@ -53,11 +54,8 @@ class RPSGame:
 
         a = actions_by_actor.get("A")
         b = actions_by_actor.get("B")
-        if a not in ("R", "P", "S") or b not in ("R", "P", "S"):
+        if not isinstance(a, RPSAction) or not isinstance(b, RPSAction):
             raise ValueError(f"Invalid RPS actions: A={a!r}, B={b!r}")
-
-        a = a  # type: ignore[assignment]
-        b = b  # type: ignore[assignment]
 
         # Determine winner of the round
         winner: Optional[str]
@@ -84,8 +82,8 @@ class RPSGame:
             {
                 "game": self.game_id,
                 "round": state.round_index,  # 1-based after increment
-                "A": a,
-                "B": b,
+                "A": a.to_wire(),
+                "B": b.to_wire(),
                 "winner": winner,
                 "score_a": state.score_a,
                 "score_b": state.score_b,

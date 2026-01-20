@@ -11,6 +11,7 @@ from bg_ai.events.model import Event
 from bg_ai.events.sink import EventSink
 from bg_ai.games.base import Game, MatchResult
 from bg_ai.policies.base import DecisionContext
+from bg_ai.games.action_enum import ActionEnum
 
 
 @dataclass(frozen=True, slots=True)
@@ -100,6 +101,9 @@ class MatchRunner:
                         game_id=game.game_id,
                     )
                     action = agent.policy.decide(ctx)
+                    # Events must stay JSON-serializable.
+                    # If the action is an ActionEnum, we store its wire value.
+                    action_wire = action.to_wire() if isinstance(action, ActionEnum) else action
 
                     sink.emit(
                         Event(
@@ -107,7 +111,7 @@ class MatchRunner:
                             idx=idx,
                             tick=tick,
                             type="decision_provided",
-                            payload={"actor_id": actor_id, "action": action},
+                            payload={"actor_id": actor_id, "action": action_wire},
                         )
                     )
                     idx += 1
@@ -117,13 +121,21 @@ class MatchRunner:
                 # Apply actions for this tick
                 state, domain_payloads = game.apply_actions(state, actions_by_actor, rng.fork(f"game:apply:{tick}"))
 
+                # Apply actions for this tick
+                state, domain_payloads = game.apply_actions(state, actions_by_actor, rng.fork(f"game:apply:{tick}"))
+
+                # For action logging, keep payload JSON-safe (wire strings for enums)
+                actions_wire_by_actor = {
+                    k: (v.to_wire() if isinstance(v, ActionEnum) else v) for k, v in actions_by_actor.items()
+                }
+
                 sink.emit(
                     Event(
                         match_id=match_id,
                         idx=idx,
                         tick=tick,
                         type="actions_applied",
-                        payload={"actions": actions_by_actor},
+                        payload={"actions": actions_wire_by_actor},
                     )
                 )
                 idx += 1
