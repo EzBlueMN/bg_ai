@@ -157,11 +157,46 @@ def test_s15_1() -> None:
     assert completed[0].payload["match_index"] == 0
     assert isinstance(completed[0].payload["match_id"], str)
 
-
-
 def test_s16() -> None:
-    # TODO: implement validation for S16
-    pass
+    from bg_ai.agents.agent import Agent
+    from bg_ai.engine.match_runner import MatchConfig, MatchRunner
+    from bg_ai.events.codecs_jsonl import export_events_jsonl, import_events_jsonl
+    from bg_ai.events.sink import InMemoryEventSink
+    from bg_ai.games.matching_fingers.game import MatchingFingersGame
+    from bg_ai.games.matching_fingers.types import FingersAction
+    from bg_ai.policies.fixed_policy import FixedPolicy
+    from bg_ai.replay.replayer import Replayer, ReplayConfig
+
+    runner = MatchRunner()
+
+    # Case 1: same action -> same_winner (default A)
+    sink = InMemoryEventSink()
+    cfg = MatchConfig(game_config={"actors": ["A", "B"]}, seed=123, max_ticks=100)
+    agents = {
+        "A": Agent(actor_id="A", policy=FixedPolicy(FingersAction.ONE)),
+        "B": Agent(actor_id="B", policy=FixedPolicy(FingersAction.ONE)),
+    }
+    _match_id, live_result = runner.run_match(MatchingFingersGame(), sink, cfg, agents_by_id=agents)
+    assert live_result.details.get("winner") == "A"
+
+    # Event payloads must be JSON-serializable (wire strings for enums)
+    decision_events = [e for e in sink.events() if e.type == "decision_provided"]
+    assert decision_events and all(isinstance(e.payload.get("action"), str) for e in decision_events)
+
+    # Replay must match live
+    path = export_events_jsonl("runs/adr0003_s16_matching_fingers.jsonl", sink.events())
+    events = import_events_jsonl(path)
+    replay_result = Replayer().replay(MatchingFingersGame(), events, ReplayConfig(game_config={"actors": ["A", "B"]}))
+    assert replay_result.details == live_result.details
+
+    # Case 2: different actions -> different_winner (default B)
+    sink2 = InMemoryEventSink()
+    agents2 = {
+        "A": Agent(actor_id="A", policy=FixedPolicy(FingersAction.ONE)),
+        "B": Agent(actor_id="B", policy=FixedPolicy(FingersAction.TWO)),
+    }
+    _mid2, result2 = runner.run_match(MatchingFingersGame(), sink2, cfg, agents_by_id=agents2)
+    assert result2.details.get("winner") == "B"
 
 
 def test_s17() -> None:
