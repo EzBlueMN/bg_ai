@@ -97,10 +97,51 @@ def test_s19() -> None:
     assert res.outcome == "done"
 
 
-
 def test_s20() -> None:
-    # TODO: implement validation for S20
-    pass
+    # S20: run multiple matches sequentially, updating stats after each match.
+    from bg_ai.agents.agent import Agent
+    from bg_ai.games.rock_paper_scissors.game import RPSGame
+    from bg_ai.games.rock_paper_scissors.types import RPSAction
+    from bg_ai.policies.fixed_policy import FixedPolicy
+    from bg_ai.sim.sim_runner import SimConfig, SimRunner
+    from bg_ai.stats.memory_store import InMemoryStatsStore
+
+    store = InMemoryStatsStore()
+
+    runner = SimRunner()
+
+    # We will run 2 matches:
+    # - Match 1: A ROCK vs B SCISSORS => A win
+    # - Match 2: A ROCK vs B SCISSORS => A win again
+    # This makes the assertions stable without needing randomness.
+    config = SimConfig(
+        game_config={"actors": ["A", "B"]},
+        num_matches=2,
+        seed=123,
+        max_ticks=100,
+    )
+
+    agents = {
+        "A": Agent("A", FixedPolicy(RPSAction.ROCK)),
+        "B": Agent("B", FixedPolicy(RPSAction.SCISSORS)),
+    }
+
+    sim_res = runner.run_matches(
+        game=RPSGame(),
+        config=config,
+        agents_by_id=agents,
+        stats_store=store,
+        stats_query=store,  # S19 wiring: DecisionContext.stats receives this
+    )
+
+    assert len(sim_res.match_results) == 2
+
+    # Stats should reflect 2 matches
+    assert store.action_counts("A") == {"R": 2}
+    assert store.action_counts("B") == {"S": 2}
+
+    assert store.record("A") == {"wins": 2, "losses": 0, "draws": 0, "total": 2}
+    assert store.record("B") == {"wins": 0, "losses": 2, "draws": 0, "total": 2}
 
 
 def test_s21() -> None:
