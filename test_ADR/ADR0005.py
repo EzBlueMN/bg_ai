@@ -1,7 +1,5 @@
 from __future__ import annotations
 
-import io
-from contextlib import redirect_stdout
 from pathlib import Path
 from typing import Callable, Dict
 
@@ -10,10 +8,6 @@ STARTING_SLICE = 22
 LAST_SLICE = 27
 STATUS = "active"
 
-
-# -------------------------
-# Helpers
-# -------------------------
 
 def _repo_root() -> Path:
     return Path(__file__).resolve().parent.parent
@@ -28,11 +22,6 @@ def _ensure_src_on_syspath() -> None:
 
 
 _ensure_src_on_syspath()
-
-
-def _assert(condition: bool, msg: str) -> None:
-    if not condition:
-        raise AssertionError(msg)
 
 
 def _run_slices(slice_tests: Dict[int, Callable[[], None]], fail_fast: bool = True) -> None:
@@ -58,16 +47,7 @@ def _run_slices(slice_tests: Dict[int, Callable[[], None]], fail_fast: bool = Tr
     print("All requested slice tests completed.")
 
 
-# -------------------------
-# Slice tests
-# -------------------------
-
 def test_s22() -> None:
-    """
-    S22:
-    - PhaseId exists
-    - PhaseRules Protocol exists and is structurally usable
-    """
     from bg_ai.engine.rng import RNG
     from bg_ai.games.phases.ids import PhaseId
     from bg_ai.games.phases.rules import PhaseRules
@@ -82,30 +62,22 @@ def test_s22() -> None:
         def apply_actions(self, state, actions_by_actor, rng: RNG):
             return state, [{"type": "dummy", "actions": dict(actions_by_actor)}]
 
-    # phase id is wire-safe str
     p: PhaseId = "CHOOSE_ACTION"
-    _assert(isinstance(p, str), "S22 failed: PhaseId must be str-compatible")
+    assert isinstance(p, str)
 
-    # structural typing check (runtime)
     rules: PhaseRules = DummyRules()
     state0 = {"phase": p}
-    _assert(rules.current_actor_ids(state0) == ["A", "B"], "S22 failed: current_actor_ids mismatch")
-    _assert(rules.legal_actions(state0, "A") == ["X"], "S22 failed: legal_actions mismatch")
+    assert rules.current_actor_ids(state0) == ["A", "B"]
+    assert rules.legal_actions(state0, "A") == ["X"]
 
     rng = RNG.from_seed(123)
     state1, payloads = rules.apply_actions(state0, {"A": "X"}, rng)
-    _assert(state1 == state0, "S22 failed: apply_actions returned wrong state")
-    _assert(isinstance(payloads, list) and len(payloads) == 1, "S22 failed: domain payload shape mismatch")
+    assert state1 == state0
+    assert isinstance(payloads, list) and len(payloads) == 1
 
 
 def test_s23() -> None:
-    """
-    S23:
-    - PhaseState wrapper exists (phase + memory + pending)
-    - Works with arbitrary memory/pending objects
-    """
     from dataclasses import dataclass
-
     from bg_ai.games.phases.state import PhaseState
 
     @dataclass(frozen=True, slots=True)
@@ -117,30 +89,132 @@ def test_s23() -> None:
         chosen: str
 
     st = PhaseState[Memory, Pending](phase="INIT", memory=Memory(coins=3), pending=None)
-    _assert(st.phase == "INIT", "S23 failed: phase mismatch")
-    _assert(st.memory.coins == 3, "S23 failed: memory mismatch")
-    _assert(st.pending is None, "S23 failed: pending should start None")
+    assert st.phase == "INIT"
+    assert st.memory.coins == 3
+    assert st.pending is None
 
     st2 = PhaseState[Memory, Pending](phase="CHOOSE", memory=st.memory, pending=Pending(chosen="BUY"))
-    _assert(st2.phase == "CHOOSE", "S23 failed: phase not set")
-    _assert(st2.pending is not None and st2.pending.chosen == "BUY", "S23 failed: pending mismatch")
-
+    assert st2.phase == "CHOOSE"
+    assert st2.pending is not None and st2.pending.chosen == "BUY"
 
 
 def test_s24() -> None:
-    pass
+    from dataclasses import dataclass
+
+    from bg_ai.agents.agent import Agent
+    from bg_ai.engine.match_runner import MatchConfig, MatchRunner
+    from bg_ai.events.sink import InMemoryEventSink
+    from bg_ai.games.buy_play.game import BuyPlayGame
+    from bg_ai.games.buy_play.types import BuyPlayAction, PHASE_CHOOSE, PHASE_RESOLVE
+    from bg_ai.policies.base import DecisionContext
+
+    @dataclass(frozen=True, slots=True)
+    class PhaseAwarePolicy:
+        choose_action: BuyPlayAction
+
+        def decide(self, ctx: DecisionContext) -> object:
+            if getattr(ctx.state, "phase", None) == PHASE_CHOOSE:
+                return self.choose_action
+            if getattr(ctx.state, "phase", None) == PHASE_RESOLVE:
+                return BuyPlayAction.PASS
+            return BuyPlayAction.PASS
+
+    sink = InMemoryEventSink()
+    runner = MatchRunner()
+    cfg = MatchConfig(game_config={"actors": ["A", "B"], "max_turns": 1}, seed=123, max_ticks=50)
+
+    agents = {
+        "A": Agent("A", PhaseAwarePolicy(BuyPlayAction.BUY)),
+        "B": Agent("B", PhaseAwarePolicy(BuyPlayAction.PASS)),
+    }
+
+    _mid, res = runner.run_match(BuyPlayGame(), sink, cfg, agents_by_id=agents)
+
+    assert res.details["coins_by_actor"] == {"A": 1, "B": 0}
+    assert res.details["points_by_actor"] == {"A": 0, "B": 0}
+    assert res.details["turn"] == 1
+    assert res.details["winner"] is None
+
+    applied = [e for e in sink.events() if e.type == "actions_applied"]
+    assert len(applied) == 2
 
 
 def test_s25() -> None:
-    pass
+    # S25: BuyPlay uses dispatcher pattern and exposes phase_rules_by_id.
+    from dataclasses import dataclass
 
+    from bg_ai.agents.agent import Agent
+    from bg_ai.engine.match_runner import MatchConfig, MatchRunner
+    from bg_ai.events.sink import InMemoryEventSink
+    from bg_ai.games.buy_play.game import BuyPlayGame
+    from bg_ai.games.buy_play.rules import ChoosePhaseRules, ResolvePhaseRules
+    from bg_ai.games.buy_play.types import BuyPlayAction, PHASE_CHOOSE, PHASE_RESOLVE
+    from bg_ai.policies.base import DecisionContext
+
+    game = BuyPlayGame()
+    assert hasattr(game, "phase_rules_by_id")
+    assert isinstance(game.phase_rules_by_id[PHASE_CHOOSE], ChoosePhaseRules)
+    assert isinstance(game.phase_rules_by_id[PHASE_RESOLVE], ResolvePhaseRules)
+
+    # Also verify legal_actions differs by phase via delegation
+    st = game.initial_state(rng=None, config={"actors": ["A", "B"], "max_turns": 1})
+    assert st.phase == PHASE_CHOOSE
+    assert BuyPlayAction.PASS in (game.legal_actions(st, "A") or [])
+    assert BuyPlayAction.BUY in (game.legal_actions(st, "A") or [])
+
+    @dataclass(frozen=True, slots=True)
+    class PhaseAwarePolicy:
+        choose_action: BuyPlayAction
+
+        def decide(self, ctx: DecisionContext) -> object:
+            if getattr(ctx.state, "phase", None) == PHASE_CHOOSE:
+                return self.choose_action
+            if getattr(ctx.state, "phase", None) == PHASE_RESOLVE:
+                return BuyPlayAction.PASS
+            return BuyPlayAction.PASS
+
+    sink = InMemoryEventSink()
+    runner = MatchRunner()
+    cfg = MatchConfig(game_config={"actors": ["A", "B"], "max_turns": 1}, seed=123, max_ticks=50)
+
+    agents = {
+        "A": Agent("A", PhaseAwarePolicy(BuyPlayAction.BUY)),
+        "B": Agent("B", PhaseAwarePolicy(BuyPlayAction.PASS)),
+    }
+
+    _mid, res = runner.run_match(game, sink, cfg, agents_by_id=agents)
+    assert res.details["coins_by_actor"] == {"A": 1, "B": 0}
+
+    applied = [e for e in sink.events() if e.type == "actions_applied"]
+    assert len(applied) == 2
 
 def test_s26() -> None:
-    pass
+    # S26: Policies for phase-driven gameplay.
+    from bg_ai.agents.agent import Agent
+    from bg_ai.engine.match_runner import MatchConfig, MatchRunner
+    from bg_ai.events.sink import InMemoryEventSink
+    from bg_ai.games.buy_play import BuyPlayGame, ConservativeBuyPlayPolicy, GreedyBuyPlayPolicy
 
+    sink = InMemoryEventSink()
+    runner = MatchRunner()
 
-def test_s27() -> None:
-    pass
+    # 2 turns: Greedy should get 1 point on turn 2 via BOTH
+    # Conservative (target_coins=2) will BUY both turns and score 0 points.
+    cfg = MatchConfig(game_config={"actors": ["A", "B"], "max_turns": 2}, seed=123, max_ticks=200)
+
+    agents = {
+        "A": Agent("A", GreedyBuyPlayPolicy()),
+        "B": Agent("B", ConservativeBuyPlayPolicy(target_coins=2)),
+    }
+
+    _mid, res = runner.run_match(BuyPlayGame(), sink, cfg, agents_by_id=agents)
+
+    assert res.details["points_by_actor"] == {"A": 1, "B": 0}
+    assert res.details["winner"] == "A"
+
+    # We should still see 2 phases per turn => 4 actions_applied events for 2 turns.
+    applied = [e for e in sink.events() if e.type == "actions_applied"]
+    assert len(applied) == 4
 
 
 SLICE_TESTS: Dict[int, Callable[[], None]] = {
@@ -149,7 +223,6 @@ SLICE_TESTS: Dict[int, Callable[[], None]] = {
     24: test_s24,
     25: test_s25,
     26: test_s26,
-    27: test_s27,
 }
 
 
