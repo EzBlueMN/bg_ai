@@ -99,7 +99,32 @@ def test_s22() -> None:
 
 
 def test_s23() -> None:
-    pass
+    """
+    S23:
+    - PhaseState wrapper exists (phase + memory + pending)
+    - Works with arbitrary memory/pending objects
+    """
+    from dataclasses import dataclass
+
+    from bg_ai.games.phases.state import PhaseState
+
+    @dataclass(frozen=True, slots=True)
+    class Memory:
+        coins: int
+
+    @dataclass(frozen=True, slots=True)
+    class Pending:
+        chosen: str
+
+    st = PhaseState[Memory, Pending](phase="INIT", memory=Memory(coins=3), pending=None)
+    _assert(st.phase == "INIT", "S23 failed: phase mismatch")
+    _assert(st.memory.coins == 3, "S23 failed: memory mismatch")
+    _assert(st.pending is None, "S23 failed: pending should start None")
+
+    st2 = PhaseState[Memory, Pending](phase="CHOOSE", memory=st.memory, pending=Pending(chosen="BUY"))
+    _assert(st2.phase == "CHOOSE", "S23 failed: phase not set")
+    _assert(st2.pending is not None and st2.pending.chosen == "BUY", "S23 failed: pending mismatch")
+
 
 
 def test_s24() -> None:
