@@ -31,9 +31,9 @@ class SimResult:
 class SimRunner:
     """
     S20:
-    - Runs M matches sequentially
-    - Updates stats store after each match (store.ingest_match(result, events))
-    - Passes stats_query into policies via MatchRunner (S19)
+    - Runs N matches sequentially
+    - Updates stats store after each match
+    - Passes stats_query into MatchRunner (S19)
     """
 
     def __init__(self) -> None:
@@ -70,9 +70,7 @@ class SimRunner:
                 stats_query=stats_query,
             )
 
-            # Update stats after each match
             stats_store.ingest_match(result=result, events=sink.events())
-
             results.append(result)
 
         return SimResult(match_results=results)

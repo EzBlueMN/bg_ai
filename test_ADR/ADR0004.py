@@ -107,13 +107,8 @@ def test_s20() -> None:
     from bg_ai.stats.memory_store import InMemoryStatsStore
 
     store = InMemoryStatsStore()
-
     runner = SimRunner()
 
-    # We will run 2 matches:
-    # - Match 1: A ROCK vs B SCISSORS => A win
-    # - Match 2: A ROCK vs B SCISSORS => A win again
-    # This makes the assertions stable without needing randomness.
     config = SimConfig(
         game_config={"actors": ["A", "B"]},
         num_matches=2,
@@ -131,12 +126,12 @@ def test_s20() -> None:
         config=config,
         agents_by_id=agents,
         stats_store=store,
-        stats_query=store,  # S19 wiring: DecisionContext.stats receives this
+        stats_query=store,
     )
 
     assert len(sim_res.match_results) == 2
 
-    # Stats should reflect 2 matches
+    # Stable assertions: 2 matches => 2 decisions each actor => 2 total actions each
     assert store.action_counts("A") == {"R": 2}
     assert store.action_counts("B") == {"S": 2}
 
@@ -145,8 +140,57 @@ def test_s20() -> None:
 
 
 def test_s21() -> None:
-    # TODO: implement validation for S21
-    pass
+    """
+    S21: ADR0004 integration assertions:
+    - StatsStore exists and can ingest match results
+    - MatchRunner provides ctx.stats to policies (S19)
+    - SimRunner updates stats across multiple matches (S20)
+    """
+    from dataclasses import dataclass
+
+    from bg_ai.agents.agent import Agent
+    from bg_ai.games.rock_paper_scissors.game import RPSGame
+    from bg_ai.games.rock_paper_scissors.types import RPSAction
+    from bg_ai.policies.base import DecisionContext
+    from bg_ai.sim.sim_runner import SimConfig, SimRunner
+    from bg_ai.stats.base import StatsQuery
+    from bg_ai.stats.memory_store import InMemoryStatsStore
+
+    store = InMemoryStatsStore()
+
+    @dataclass(frozen=True, slots=True)
+    class _StatsAwarePolicy:
+        expected_stats: StatsQuery
+        action: RPSAction
+
+        def decide(self, ctx: DecisionContext) -> object:
+            # S21: the DecisionContext.stats object is the injected one
+            assert ctx.stats is self.expected_stats
+            return self.action
+
+    agents = {
+        "A": Agent("A", _StatsAwarePolicy(store, RPSAction.ROCK)),
+        "B": Agent("B", _StatsAwarePolicy(store, RPSAction.SCISSORS)),
+    }
+
+    sim_res = SimRunner().run_matches(
+        game=RPSGame(),
+        config=SimConfig(game_config={"actors": ["A", "B"]}, num_matches=3, seed=100, max_ticks=100),
+        agents_by_id=agents,
+        stats_store=store,
+        stats_query=store,
+    )
+
+    assert len(sim_res.match_results) == 3
+
+    # RPS: A always ROCK, B always SCISSORS => A always wins
+    assert store.record("A") == {"wins": 3, "losses": 0, "draws": 0, "total": 3}
+    assert store.record("B") == {"wins": 0, "losses": 3, "draws": 0, "total": 3}
+
+    # Action counts: 3 matches => each actor decided 3 times
+    assert store.action_counts("A") == {"R": 3}
+    assert store.action_counts("B") == {"S": 3}
+
 
 
 SLICE_TESTS: Dict[int, Callable[[], None]] = {
