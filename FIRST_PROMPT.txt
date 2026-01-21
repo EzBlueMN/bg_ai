@@ -16,10 +16,10 @@ These fields define the current project state. If any are missing, STOP and ask 
 
 PROJECT_NAME = bg_ai
 REPO_URL = https://github.com/EzBlueMN/bg_ai
-EXPECTED_LATEST_COMMIT = 952e0ad06ae984f6ddfef11713a1cd2bb983a81a
+EXPECTED_LATEST_COMMIT = - Not important - the source of truth is the zip I (will) provide(d)
 
 CURRENT_SLICE = S22
-CURRENT_MILESTONE = Defining ADR0005
+CURRENT_MILESTONE = ADR0005
 CURRENT_ROLE = Reviewer + Tech Lead
 
 PROJECT STRUCTURE CONVENTIONS (IMPORTANT)
@@ -48,7 +48,7 @@ DOC COPY/PASTE RULE (IMPORTANT UI LIMITATION)
 0) PROJECT SOURCE OF TRUTH (GITHUB + DOCS)
 ────────────────────────────────────────────────────────────
 Rules:
-- Treat REPO_URL as the single source of truth for code and docs.
+- Treat the
 - Before answering any project question, you must first align yourself with the existing documentation in this repo:
   - docs/PROJECT_BRIEF.md
   - docs/FEATURES.md

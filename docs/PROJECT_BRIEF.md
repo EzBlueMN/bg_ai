@@ -1,70 +1,35 @@
 # bg_ai — Project Brief
 
-## One-liner
-A Python learning playground to simulate any kind of board/turn-based game with agents (players) using policies (strategies), producing deterministic results and a complete event trace that enables replay and analysis.
+## One-line summary
+bg_ai is a deterministic, event-traced simulation framework for turn-based games, designed to support reproducible experiments, replay, and policy-driven agents.
 
-## Purpose
-bg_ai provides a clean, extensible core for:
-- implementing many different games (simultaneous, turn-based, initiative-based, multi-step turns)
-- experimenting with strategies/policies
-- running reproducible matches and simulations
-- capturing a full event trace for debugging, analytics, and future automation
+## What bg_ai is (current scope)
+- A minimal engine to run **matches** (single-game executions) with:
+  - deterministic RNG
+  - structured events (JSONL export/import)
+  - replay to reproduce match results
+- A framework to plug in **Games** and **Policies**
+- A growing set of “toy games” used as architecture validation
+- A stats/query layer (in-memory first) for policy context and analysis
 
-## Core Principles
+## What bg_ai is NOT (yet)
+- A full multi-agent RL training framework
+- A full game DSL / data-driven game definition language
+- A complete tournament manager (Swiss, brackets, etc.)
+- Hidden-information / partially observable game engine (planned later)
 
-### Determinism (hard requirement)
-- Same seed + same setup ⇒ same match result and same event trace (within defined version constraints).
-- Randomness may exist anywhere (engine/game/policy), but must flow through a seeded RNG (or a seed generated at initialization and recorded).
+## Core invariants (do not break)
+1) **Determinism**: same seed + same policies ⇒ same results/events
+2) **Replay correctness**: replaying recorded events reproduces the match outcome
+3) **Events are JSON-serializable**: payloads must remain wire-safe
+4) **Stable module layout**: src-layout, imports always `from bg_ai...`
+5) **Slice numbering monotonic**: slices never reset across ADRs
 
-### Event trace (first-class)
-- The engine emits events for everything needed to understand and reproduce a match:
-  - game events
-  - engine events
-  - decision/policy events
-  - randomness/seed events as needed for determinism
+## Current implemented milestones (high-level)
+- ADR0001: deterministic match engine + event tracing + replay
+- ADR0002: repo usability + runner patterns for ADR tests
+- ADR0003: typed actions + single-match games + series runner + series events
+- ADR0004: stats/query (in-memory) + DecisionContext.stats + SimRunner
 
-### Hybrid truth model (canonical events + optional snapshots)
-- Events are the canonical source of truth for replay/debugging.
-- State snapshots may be optionally stored as performance optimizations.
-- Replay must support reconstructing state from initial setup + events without invoking agents/policies.
-
-## Definitions / Vocabulary
-- **Game**: a ruleset/type (e.g., Chess, RPS).
-- **Match**: one complete playthrough instance of a Game.
-- **Simulation**: orchestration layer for running many matches (tournaments/experiments).
-- **Tick**: universal engine step. Games may additionally define Turn/Round/Phase as game-specific concepts.
-- **Agent (Player)**: participant in a match; uses a Policy to choose actions.
-- **Policy (Strategy)**: decision logic that suggests the next action.
-- **Event**: immutable record of a meaningful occurrence (decision requested, action chosen, state updated, RNG used, etc.).
-- **Replay**: reconstructing match state by applying events from an initial state (optionally from a snapshot + remaining events).
-
-## MVP Scope
-Must have:
-- core engine capable of running at least one example game end-to-end
-- deterministic execution with a fixed seed
-- in-memory event log captured for the match
-- export of event log (e.g., JSON/JSONL)
-- replay mode that rebuilds state from initial setup + event list (no policy execution)
-- hard-coded configuration through main.py (CLI later)
-
-Example starting games:
-- start with a simple game (e.g., RPS)
-- architecture must support additional game types (turn-based, initiative, multi-step turns)
-
-## Non-goals (Not Now)
-- multiplayer networking / online play
-- real-time (frame-based) games
-- GUI editors for games/policies (a simple match viewer may exist later)
-- parallel/distributed compute
-- auto hyperparameter tuning
-- complex plugin marketplace system
-
-## Maybe Soon
-- a storage layer (JSONL/SQLite) for matches, events, metadata, and derived stats
-- analytics/query helpers: action ratios, win rates, policy usage per match/tournament, etc.
-
-## Success Criteria
-- adding a new policy does not require changing game logic
-- adding a new game does not require changing the engine core (beyond registering the new game)
-- same seed reproduces the same outcome and trace
-- any match can be replayed from stored events (and optional snapshots)
+## Next milestone (planned)
+- ADR0005: phase-driven game rule modeling (multi-phase games without giant if/elif)

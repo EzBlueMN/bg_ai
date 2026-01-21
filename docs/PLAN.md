@@ -1,562 +1,136 @@
-## Milestone: ADR0001 (S1-S8) - Plan (MVP)
+# Plan
 
-**Goal:** Build a fresh MVP implementation based on the current architecture.
-**Approach:** Greenfield MVP (new code aligned with ADR/ARCHITECTURE), legacy code is ignored for implementation.
-**Priority:** Determinism + Events + Replay (no policies during replay).
+Slice numbers are global and monotonic: S1, S2, S3, ... forever.
 
----
-
-## 0) MVP Definition of Done
-
-The MVP is complete when all of the following are true:
-
-1) A match can run end-to-end for at least one game (RPS).
-2) Determinism works:
-   - Same seed + same config ⇒ same event trace + same match result
-3) A full event log is produced during the match.
-4) Event log can be exported to disk.
-5) Replay works without calling policies:
-   - Initial setup + events ⇒ same final result
-6) A single entrypoint (initially hard-coded `main.py`) runs:
-   - live match
-   - replay from exported log
+Rule:
+- Every slice belongs to exactly one ADR.
+- Docs-only milestones still get an ADR number and a lightweight ADR runner.
 
 ---
 
-## 1) Implementation strategy
+## ADR0001 — Event-traced deterministic architecture (S1–S8)
+Status: done
 
-### Fresh code (no legacy integration)
-- We implement the MVP from scratch using the new architecture.
-- We do not attempt to modify old repo code to fit the new design.
-
-### Minimal dependencies
-- Standard library only for MVP.
-- No DB, no networking, no GUI, no parallelism.
-
-### Default choices for MVP
-- Event export format: **JSONL** (1 event per line)
-- Replay mode: **Lenient replay** (strict validation optional later)
-- Policies: basic examples only (Random + Fixed)
-- Configuration: hard-coded in `main.py` (CLI later)
+- S1: deterministic RNG seed + event id baseline
+- S2: event sink + in-memory storage
+- S3: JSONL export/import
+- S4: replay baseline
+- S5: reproducible replays
+- S6: determinism checks
+- S7: RPS demo execution
+- S8: RPS replay validation
 
 ---
 
-## 2) Target MVP folder structure
+## ADR0002 — Project usability + developer onboarding (S9–S12)
+Status: done
 
-This is the structure we will create first:
-
-bg_ai/
-init.py
-
-cli/
-main.py
-
-engine/
-init.py
-match_runner.py
-rng.py
-ids.py
-
-events/
-init.py
-model.py
-sink.py
-codecs_jsonl.py
-
-games/
-init.py
-base.py
-rock_paper_scissors/
-init.py
-game.py
-types.py
-
-agents/
-init.py
-agent.py
-
-policies/
-init.py
-base.py
-random_policy.py
-fixed_policy.py
-
-replay/
-init.py
-replayer.py
-
-tests/
-test_determinism_rps.py
-test_replay_rps.py
-
-docs/
-PROJECT_BRIEF.md
-FEATURES.md
-ARCHITECTURE.md
-PLAN.md
-ADR/
-0001-event-traced-deterministic-architecture.md
+- S9: ADR runner patterns
+- S10: run_all ADR harness
+- S11: docs structure conventions
+- S12: minimal onboarding improvements
 
 ---
 
-## 3) Work slices (MVP)
+## ADR0003 — Match formats, single-match games, typed actions (S13–S17)
+Status: done
 
-Each slice is designed to be small, testable, and incremental.
-
----
-
-### Slice S1 — Repo bootstrap + entrypoint
-
-**Goal:** Establish a runnable skeleton with the target folder structure.
-
-**Files to create**
-- `bg_ai/` package + subpackages
-- `bg_ai/cli/main.py`
-
-**Acceptance criteria**
-- Running `python -m bg_ai.cli.main` works and prints "OK".
-
-**How to verify**
-- Command:
-  - `python -m bg_ai.cli.main`
+- S13: ActionEnum base + typed actions for RPS
+- S14: RPS becomes single-round match
+- S15: SeriesRunner + BestOfN / FirstToN
+- S15.1: series-level events (series_start/match_completed/end)
+- S16: Matching Fingers game (single-round)
+- S17: example module covering RPS series + Fingers series
 
 ---
 
-### Slice S2 — Deterministic RNG service (F1)
+## ADR0004 — Stats/Query layer (in-memory first) (S18–S21)
+Status: done
 
-**Goal:** Implement a deterministic RNG service that supports scoped forks.
-
-**Files**
-- `bg_ai/engine/rng.py`
-
-**Acceptance criteria**
-- Root RNG created from a seed produces deterministic numbers.
-- Forked RNG streams are stable and independent:
-  - adding new forks does not change other streams
-
-**How to verify**
-- Add a small test or demo call in `main.py`
-- Add unit test if desired later (recommended)
+- S18: InMemoryStatsStore MVP + tests
+- S19: DecisionContext.stats wiring + tests
+- S20: SimRunner runs N matches and updates stats after each match
+- S21: ADR0004 integration test (stats + ctx.stats + sim)
 
 ---
 
-### Slice S3 — Event model + in-memory sink (F2 partial)
-
-**Goal:** Define canonical event envelopes and an event sink that collects events.
-
-**Files**
-- `bg_ai/events/model.py`
-- `bg_ai/events/sink.py`
-
-**Acceptance criteria**
-- Events contain:
-  - match_id, idx, tick, type, payload
-- In-memory sink stores events in order and supports `.emit()`
-
----
-
-### Slice S4 — JSONL export/import codec (F5 partial)
-
-**Goal:** Export a list of events to JSONL and load it back.
-
-**Files**
-- `bg_ai/events/codecs_jsonl.py`
-
-**Acceptance criteria**
-- Export produces 1 JSON object per line.
-- Import restores the same event list (same fields, same order).
-
-**How to verify**
-- `main.py` writes a file like:
-  - `runs/rps_match_001.jsonl`
-- You can load it back and count events.
-
----
-
-### Slice S5 — Game base contract + MatchRunner emits lifecycle/tick events (F0 + F2 partial)
-
-**Goal:** Implement the match execution loop (Tick-based) and emit key engine events.
-
-**Files**
-- `bg_ai/games/base.py`
-- `bg_ai/engine/match_runner.py`
-- `bg_ai/engine/ids.py`
-
-**Events required (minimum)**
-- `seed_set`
-- `match_start`
-- `tick_start`
-- `tick_end`
-- `match_end`
-
-**Acceptance criteria**
-- MatchRunner can run a match loop even before full actions exist.
-- Events are emitted with increasing `idx`.
-
----
-
-### Slice S6 — Decision events + basic Agent/Policy wiring (F2 + F4 partial)
-
-**Goal:** Policies produce actions during live play and decisions are recorded.
-
-**Files**
-- `bg_ai/policies/base.py`
-- `bg_ai/policies/random_policy.py`
-- `bg_ai/policies/fixed_policy.py`
-- `bg_ai/agents/agent.py`
-
-**Events required**
-- `decision_requested`
-- `decision_provided` (must store the chosen action)
-
-**Acceptance criteria**
-- For each actor required by the game per tick:
-  - decision_requested emitted
-  - policy called once
-  - decision_provided emitted with action payload
-
----
-
-### Slice S7 — RPS game end-to-end with actions applied (F4)
-
-**Goal:** Implement a complete working example game.
-
-**Files**
-- `bg_ai/games/rock_paper_scissors/types.py`
-- `bg_ai/games/rock_paper_scissors/game.py`
-
-**Acceptance criteria**
-- RPS can run for N rounds.
-- End result produced (win/loss/draw counts or final winner).
-- Events include:
-  - decisions
-  - actions applied/resolution for each tick
-
-**How to verify**
-- Run match from `main.py`, see summary + event count.
-
----
-
-### Slice S8 — Replay (no policies) (F3)
-
-**Goal:** Rebuild match state from initial setup + recorded decisions.
-
-**Files**
-- `bg_ai/replay/replayer.py`
-
-**Replay rules**
-- Replayer must NOT instantiate agents or call policies.
-- It reads recorded `decision_provided` events and applies them via the game.
-
-**Acceptance criteria**
-- Live match result == replayed match result
-- Replay runs deterministically and produces same final outcome
-
----
-
-## 4) Testing plan (MVP)
-
-### Test T1 — Determinism
-**File:** `tests/test_determinism_rps.py`
-
-Acceptance criteria:
-- Run match twice with same seed and same config
-- event logs are identical (or at least equivalent by idx/type/payload)
-- final results identical
-
-### Test T2 — Replay
-**File:** `tests/test_replay_rps.py`
-
-Acceptance criteria:
-- Run match live → export events
-- Import events → replay
-- replay result equals live result
-
----
-
-## 5) Post-MVP planned extensions (not part of MVP)
-
-These are intentionally delayed:
-- strict replay validation (compare domain events)
-- snapshots (performance)
-- tournaments/simulation layer
-- stats/query service + SQLite store
-- CLI arguments / config files
-- GUI
-
----
-
-## 6) Execution instructions (MVP)
-
-### Run a live match
-- `python -m bg_ai.cli.main`
-
-### Run replay
-- `python -m bg_ai.cli.main --replay runs/<file>.jsonl`
-(added later when CLI exists; for MVP can be hard-coded)
-
----
-
-## 7) Notes / rules during implementation
-
-- Do not add complexity unless required by an acceptance criteria.
-- Do not let policies mutate game state directly.
-- Do not allow unseeded randomness.
-- If something is unclear, prefer adding an event to make behavior observable.
-
-## Milestone: ADR0002 (S9-S12) Readability / Developer Onboarding
-
-### Goal (Definition of Done)
-Before starting ADR0002 (Match formats + typed actions), we add a human-friendly layer so a developer can:
-1) Understand what ADR0001 built without reading all code first
-2) Know where to start and how the system flows
-3) Run a simple example from PyCharm and see readable output (events + summary)
-4) Use examples as the “living documentation” instead of relying on the ADR tests
-
----
-
-### Slice S9 — Developer README + Project Map (Docs)
-
-**Create**
-- `docs/README_DEV.md` (main onboarding entrypoint)
-- `docs/MAP.md` (navigation map: “if you want X, read Y”)
-
-**Acceptance Criteria**
-- README includes:
-  - What the project is (1 paragraph)
-  - How to run the simplest demo (one script)
-  - Key vocabulary (Game/Match/Tick/Event/Replay/Agent/Policy)
-  - “Follow the flow” (file → file)
-- MAP includes:
-  - “Start here” reading order
-  - Links to key files
-  - Debug pointers (if X fails, look at Y)
-
----
-
-### Slice S10 — ADR0001 Implementation Notes (Docs)
-
-**Create**
-- `docs/IMPLEMENTATION/ADR0001.md`
-
-**Acceptance Criteria**
-- Explains:
-  - What was implemented (S1–S8)
-  - What was intentionally NOT implemented
-  - Key invariants
-  - Event types emitted and when
-  - Replay assumptions + limitations
-  - Where to extend next (Match formats + typed actions entrypoint)
-
----
-
-### Slice S11 — Executable Examples (PyCharm-friendly)
-
-**Create**
-- `examples/adr0001_rps_live_and_replay.py`
-- `examples/adr0001_no_action_game.py`
-
-**Acceptance Criteria**
-- Running each example produces:
-  - clear printed summary
-  - event count + top event types
-  - live result vs replay result comparison (for RPS example)
-
----
-
-### Slice S12 — Pretty Event Printing Helpers
-
-**Create**
-- `src/bg_ai/events/pretty.py`
-
-**Acceptance Criteria**
-- Provide helpers:
-  - `format_event(ev) -> str`
-  - `print_events(events, limit=...)`
-  - `summarize_event_types(events) -> dict[type, count]`
-- Examples use these helpers instead of raw event dumps
-
----
-
-## Milestone: ADR0003 (S13-S17) — Match Formats, Single-Match Games, Typed Actions
-
-### Goal (Definition of Done)
-
-1) Games represent a single match (no multi-round logic inside games).
-   - RPS becomes a single round.
-2) Generic series/format layer can run multiple matches:
-   - at minimum: BestOfN and FirstToN.
-3) Actions are typed per game using Enum-based actions.
-4) A second minimal game exists to validate separation:
-   - Matching Fingers (each player reveals 1 or 2; same vs different decides winner).
-5) Examples demonstrate running a series for both games.
-
----
-
-### Slice S13 — Typed actions base + migrate RPS actions to Enum
-
-**Create / Update**
-- `src/bg_ai/games/action_enum.py` (or `src/bg_ai/games/types.py` if preferred): `ActionEnum` base
-- `src/bg_ai/games/rock_paper_scissors/types.py`: replace `"R"/"P"/"S"` literals with `RPSAction(ActionEnum)`
-
-**Acceptance criteria**
-- RPS policies/actions in live runs can use `RPSAction` (not raw strings).
-- Event payload for `decision_provided` stores a stable wire format (default: `action.value`).
-
----
-
-### Slice S14 — Refactor RPS to single-round (remove rounds from game)
-
-**Update**
-- `src/bg_ai/games/rock_paper_scissors/game.py`
-- `src/bg_ai/games/rock_paper_scissors/types.py`
-- `examples/adr0001_rps_live_and_replay.py` (or create a new ADR0002 example file)
-
-**Acceptance criteria**
-- RPS match resolves exactly one round and ends.
-- Old “rounds” config is no longer a game config field.
-- Live vs replay still matches for a single-round RPS match.
-
----
-
-### Slice S15 — Series runner + match formats (BestOfN / FirstToN)
-
-**Create**
-- `src/bg_ai/series/__init__.py`
-- `src/bg_ai/series/formats.py` (BestOfN, FirstToN)
-- `src/bg_ai/series/ids.py` (new_series_id)
-- `src/bg_ai/series/series_runner.py`
-
-**Acceptance criteria**
-- Can run N matches sequentially for a given Game + Agents.
-- Series returns aggregate result (wins/losses/draws by player, plus match results).
-
-#### Slice S15.1 — Series-level events (Option A)
-
-**Goal**
-- Add a series wrapper that emits a small set of **series-level events** without changing match-level event semantics.
-
-**Series events (minimum)**
-- `series_start`
-- `series_match_completed`
-- `series_end`
-
-**Event envelope rule**
-- For series-level events, use `Event.match_id = series_id` and `tick = -1`.
-- Include `series_id`, `match_index`, and the underlying `match_id` in the **payload**.
-
-**Acceptance criteria**
-- Running a BestOf / FirstTo series emits:
-  - exactly 1 `series_start`
-  - 1 `series_match_completed` per match played
-  - exactly 1 `series_end`
-
----
-
-### Slice S16 — Add Matching Fingers game (single-round)
-
-**Create**
-- `src/bg_ai/games/matching_fingers/__init__.py`
-- `src/bg_ai/games/matching_fingers/game.py`
-- `src/bg_ai/games/matching_fingers/types.py` (FingersAction(ActionEnum))
-
-**Acceptance criteria**
-- One match: each player picks 1 or 2; game produces winner/draw according to rules.
-- Uses typed Enum actions.
-- Works live and replay.
-
----
-
-### Slice S17 — ADR0002 example + ADR runner
-
-**Create / Update**
-- `examples/adr0002_series_rps_and_fingers.py` (recommended)
-- `test_ADR/ADR0002.py` (recommended)
-
-**Acceptance criteria**
-- Demonstrates:
-  - BestOfN (or FirstToN) for RPS and Matching Fingers
-  - Prints readable summary for each
-- ADR runner includes at least one deterministic assertion (series result stable with seed).
-
----
-
-## Milestone: ADR0004 (S18-S21) — Stats/Query Layer (In-Memory)
-
-### Goal (Definition of Done)
-
-1. A `StatsStore` can ingest completed matches (result + events).
-2. A `StatsQuery` can answer at least:
-
-   * action distribution for a player (R/P/S counts via action wire value)
-   * win rate for a player (wins/total, draws supported)
-3. `DecisionContext` includes an optional `stats` handle.
-4. A demo run (or ADR test) proves:
-
-   * run N matches
-   * store is updated
-   * queries return expected numbers
-
----
-
-### Slice S18 — Stats interfaces + in-memory implementation
-
-**Create**
-
-* `src/bg_ai/stats/__init__.py`
-* `src/bg_ai/stats/base.py` (Protocols: StatsQuery, StatsStore)
-* `src/bg_ai/stats/memory_store.py` (InMemoryStatsStore)
-
-**Acceptance criteria**
-
-* Can record:
-
-  * per-player action counts
-  * per-player wins/losses/draws (game-agnostic)
-* Query methods return deterministic results.
-
----
-
-### Slice S19 — Wire StatsQuery into DecisionContext (optional for policies)
-
-**Update**
-
-* `src/bg_ai/policies/base.py` (DecisionContext gains `stats` field, default None)
-* `src/bg_ai/engine/match_runner.py` (accept optional `stats_query` or `stats_store.query()`)
-
-**Acceptance criteria**
-
-* Policies can read `ctx.stats` if provided.
-* Existing tests still pass when stats is None.
-
----
-
-### Slice S20 — Simulation helper to run multiple matches + update store
-
-**Create**
-
-* `src/bg_ai/sim/__init__.py`
-* `src/bg_ai/sim/sim_runner.py`
-
-**Acceptance criteria**
-
-* Runs M matches sequentially, updating stats after each match:
-
-  * `store.ingest_match(game_id, agents, result, events)`
-* Returns final stats store.
-
----
-
-### Slice S21 — ADR runner for stats milestone
-
-**Create / Update**
-
-* Create:
-  * `test_ADR/ADR0003.py` (recommended for clarity)
-
-**Acceptance criteria**
-
-* After 3 RPS matches (fixed policies), assert:
-
-  * action_distribution(A)["R"] == expected
-  * win_rate(A) == expected
+## ADR0005 — Phase-driven game rule modeling (S22–S27)
+Status: planned
+
+Goal:
+- Enable multi-phase games (buy/play/resolve/etc.) with clean separation of rules.
+
+Principle:
+- Keep the engine-facing `Game` interface unchanged.
+- Implement phase logic inside games via Phase rule objects (OOP dispatcher).
+
+Non-goals (ADR0005):
+- hidden information / private state
+- parameterized actions for grid-based games
+- chance/decks abstraction
+- tournament formats
+
+### S22 — Phase model primitives (protocols + ids)
+Deliverables:
+- `bg_ai/games/phases/` package
+- `PhaseId` type (string or Enum-like)
+- `PhaseRules` Protocol:
+  - `current_actor_ids(state) -> list[str]`
+  - `legal_actions(state, actor_id) -> list[ActionEnum]`
+  - `apply_actions(state, actions_by_actor, rng) -> (state, domain_payloads)`
+Acceptance:
+- Unit tests validate a dummy PhaseRules object can be called and returns expected shapes.
+
+### S23 — Phase-driven state wrapper (generic)
+Deliverables:
+- `PhaseState` generic-ish container:
+  - `phase`
+  - `memory`
+  - optional `pending`
+Acceptance:
+- Minimal helper functions:
+  - `is_terminal` convention based on phase or a `done` flag in memory
+
+### S24 — Example game: Buy/Play/Both/Pass (single-turn, multi-phase)
+Game concept:
+- Each match is a fixed number of turns (or “first to X points” later via SeriesRunner).
+- Each turn has phases:
+  1) CHOOSE_MODE (players choose BUY/PLAY/BOTH/PASS)
+  2) RESOLVE (apply resource/point updates)
+  3) NEXT_TURN (advance turn counter, go back to CHOOSE_MODE) or END
+
+Deliverables:
+- `bg_ai/games/buy_play/` (name can change later)
+- `ActionEnum` for mode selection
+- Memory includes:
+  - coins_by_actor
+  - points_by_actor
+  - turn
+  - max_turns (from config)
+Acceptance:
+- Deterministic outcomes for fixed policies.
+
+### S25 — Dispatcher pattern inside the example game
+Deliverables:
+- Game delegates to PhaseRules objects:
+  - `ChooseModeRules`
+  - `ResolveRules`
+  - `NextTurnRules` (or integrated into Resolve)
+Acceptance:
+- `legal_actions` differs by phase (e.g., PLAY illegal if coins==0, depending on chosen rule)
+- Policies can branch on `ctx.state.phase`.
+
+### S26 — Policies for phase-driven gameplay
+Deliverables:
+- 2 policies:
+  - greedy (prefer PLAY/BOTH when possible)
+  - conservative (prefer BUY until threshold)
+Acceptance:
+- Tests verify policies see phase and make expected decisions.
+
+### S27 — ADR0005 test module + example
+Deliverables:
+- `test_ADR/ADR0005.py` runs S22..S27
+- `examples/adr0005_buy_play_phase_game.py`
+Acceptance:
+- Replay works for at least one match of the example game.
