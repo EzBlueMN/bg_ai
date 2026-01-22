@@ -16,9 +16,10 @@ These fields define the current project state. If any are missing, STOP and ask 
 
 PROJECT_NAME = bg_ai
 REPO_URL = https://github.com/EzBlueMN/bg_ai
+* Use the Zip file as source of truth
 EXPECTED_LATEST_COMMIT = - Not important - the source of truth is the zip I (will) provide(d)
 
-CURRENT_SLICE = S22
+CURRENT_SLICE = S27
 CURRENT_MILESTONE = ADR0005
 CURRENT_ROLE = Reviewer + Tech Lead
 
